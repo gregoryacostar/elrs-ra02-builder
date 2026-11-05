@@ -1,0 +1,46 @@
+name: Compilar ELRS para RA-02 (433 MHz)
+
+on:
+  workflow_dispatch: # Permite ejecutarlo manualmente con un botón
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Descargar el código fuente oficial de ExpressLRS
+      - name: Clonar ExpressLRS
+        run: |
+          git clone --depth 1 --branch 3.4.3 https://github.com/ExpressLRS/ExpressLRS.git elrs
+          cd elrs
+
+      # 2. Instalar Python y PlatformIO en el servidor de GitHub
+      - name: Configurar Python y PlatformIO
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install platformio
+
+      # 3. Script que modifica el código para RA-02 (433 MHz y tus pines)
+      - name: Modificar configuración para SX1278 433MHz
+        run: |
+          cd elrs
+          
+          # Aquí usamos 'sed' o python para cambiar variables en el código:
+          # Por ejemplo, forzar el dominio regulatorio a AU_433:
+          find . -name "*.ini" -exec sed -i 's/-D Regulatory_Domain_ISM_2400/-D Regulatory_Domain_AU_433/g' {} +
+          
+          # Puedes inyectar tus pines SPI del ESP32-C3 o tu Binding Phrase aquí
+
+      # 4. Compilar el target para ESP32
+      - name: Compilar con PlatformIO
+        run: |
+          cd elrs
+          pio run -e DIY_900_TX_ESP32  # o el target DIY que seleccionemos
+
+      # 5. Guardar y entregar el archivo .bin compilado
+      - name: Subir Binario Compilado (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware_elrs_ra02
+          path: elrs/.pio/build/**/firmware.bin
