@@ -21,7 +21,7 @@ jobs:
       - name: Instalar PlatformIO CLI
         run: pip install platformio
 
-      # 3. Configurar user_defines.txt (433 MHz + Clave de Enlace)
+      # 3. Configurar user_defines.txt (433 MHz + Binding Phrase)
       - name: Configurar user_defines.txt
         run: |
           cd elrs/src
@@ -30,24 +30,39 @@ jobs:
           -DMY_BINDING_PHRASE="vtol_expresslrs"
           EOF
 
-      # 4. Compilar Receptor (RX) y Transmisor (TX)
-      - name: Compilar Firmware para ESP32-C3
+      # 4. Compilar Receptor (RX) por separado
+      - name: Compilar Receptor RX C3 (433MHz)
         run: |
           cd elrs/src
-          echo "Compilando Receptor RX C3 (433MHz)..."
           pio run -e Unified_ESP32C3_900_RX_via_UART
-          
-          echo "Compilando Transmisor TX C3 (433MHz)..."
+
+      # 5. Compilar Transmisor (TX) por separado
+      - name: Compilar Transmisor TX C3 (433MHz)
+        run: |
+          cd elrs/src
           pio run -e Unified_ESP32C3_900_TX_via_UART
 
-      # 5. Organizar y renombrar los archivos binarios
+      # 6. Organizar y renombrar los archivos encontrados
       - name: Preparar archivos para descarga
         run: |
           mkdir -p binarios_listos
-          cp elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/firmware.bin binarios_listos/firmware_RX_avion.bin
-          cp elrs/src/.pio/build/Unified_ESP32C3_900_TX_via_UART/firmware.bin binarios_listos/firmware_TX_emisora.bin
+          
+          # Copia segura del RX si existe
+          if [ -f elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/firmware.bin ]; then
+            cp elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/firmware.bin binarios_listos/firmware_RX_avion.bin
+            echo "-> Firmware RX copiado con exito."
+          else
+            echo "-> Buscando binario RX..."
+            find elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/ -name "*.bin" -exec cp {} binarios_listos/firmware_RX_avion.bin \;
+          fi
 
-      # 6. Subir ambos archivos con nombres claros
+          # Copia segura del TX si existe
+          if [ -f elrs/src/.pio/build/Unified_ESP32C3_900_TX_via_UART/firmware.bin ]; then
+            cp elrs/src/.pio/build/Unified_ESP32C3_900_TX_via_UART/firmware.bin binarios_listos/firmware_TX_emisora.bin
+            echo "-> Firmware TX copiado con exito."
+          fi
+
+      # 7. Subir los binarios resultantes
       - name: Subir Binarios Compilados (Artifacts)
         uses: actions/upload-artifact@v4
         with:
