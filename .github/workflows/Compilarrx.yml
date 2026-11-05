@@ -1,0 +1,44 @@
+name: Compilar ELRS RX para ESP32-C3 SuperMini (433 MHz)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Clonar ExpressLRS (master)
+      - name: Clonar ExpressLRS
+        run: |
+          git clone --depth 1 --recurse-submodules https://github.com/ExpressLRS/ExpressLRS.git elrs
+
+      # 2. Instalar PlatformIO
+      - name: Configurar Python y PlatformIO
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Instalar PlatformIO CLI
+        run: pip install platformio
+
+      # 3. Configurar user_defines.txt (433 MHz + Binding Phrase idéntica a la del TX)
+      - name: Configurar user_defines.txt
+        run: |
+          cd elrs/src
+          cat << 'EOF' > user_defines.txt
+          -DRegulatory_Domain_AU_433
+          -DMY_BINDING_PHRASE="vtol_expresslrs"
+          EOF
+
+      # 4. Compilar ÚNICAMENTE el Receptor (RX)
+      - name: Compilar Receptor RX C3
+        run: |
+          cd elrs/src
+          pio run -e Unified_ESP32C3_900_RX_via_UART
+
+      # 5. Guardar el archivo .bin del Receptor
+      - name: Subir Binario del Receptor (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware_RX_avion
+          path: elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/firmware.bin
