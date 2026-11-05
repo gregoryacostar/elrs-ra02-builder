@@ -8,39 +8,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar el código fuente oficial de ExpressLRS
+      # 1. Descargar el código fuente con submódulos
       - name: Clonar ExpressLRS
         run: |
-          git clone --depth 1 --branch 3.4.3 https://github.com/ExpressLRS/ExpressLRS.git elrs
-          cd elrs
+          git clone --depth 1 --recurse-submodules --branch 3.4.3 https://github.com/ExpressLRS/ExpressLRS.git elrs
 
-      # 2. Instalar Python y PlatformIO en el servidor de GitHub
+      # 2. Instalar Python y PlatformIO
       - name: Configurar Python y PlatformIO
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - run: pip install platformio
+      - name: Instalar PlatformIO CLI
+        run: pip install platformio
 
-      # 3. Script que modifica el código para RA-02 (433 MHz y tus pines)
-      - name: Modificar configuración para SX1278 433MHz
+      # 3. Forzar el dominio a 433 MHz
+      - name: Configurar dominio regulatorio 433 MHz
         run: |
-          cd elrs
-          
-          # Aquí usamos 'sed' o python para cambiar variables en el código:
-          # Por ejemplo, forzar el dominio regulatorio a AU_433:
+          cd elrs/src
+          # Reemplaza el dominio por defecto al dominio AU_433 (Banda de 433 MHz)
           find . -name "*.ini" -exec sed -i 's/-D Regulatory_Domain_ISM_2400/-D Regulatory_Domain_AU_433/g' {} +
-          
-          # Puedes inyectar tus pines SPI del ESP32-C3 o tu Binding Phrase aquí
+          find . -name "*.ini" -exec sed -i 's/-D Regulatory_Domain_FCC_915/-D Regulatory_Domain_AU_433/g' {} +
 
-      # 4. Compilar el target para ESP32
+      # 4. Compilar en la subcarpeta src/
       - name: Compilar con PlatformIO
         run: |
-          cd elrs
-          pio run -e DIY_900_TX_ESP32  # o el target DIY que seleccionemos
+          cd elrs/src
+          # Si compilas para ESP32-C3 TX usa: Unified_ESP32C3_900_TX_via_UART
+          # Si compilas para ESP32 Clásico TX usa: Unified_ESP32_900_TX_via_UART
+          pio run -e Unified_ESP32_900_TX_via_UART
 
-      # 5. Guardar y entregar el archivo .bin compilado
+      # 5. Guardar el archivo .bin generado
       - name: Subir Binario Compilado (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: firmware_elrs_ra02
-          path: elrs/.pio/build/**/firmware.bin
+          name: firmware_elrs_ra02_tx
+          path: elrs/src/.pio/build/**/firmware.bin
