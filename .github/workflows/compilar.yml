@@ -1,19 +1,19 @@
-name: Compilar ELRS para RA-02 (433 MHz)
+name: Compilar ELRS para ESP32-C3 SuperMini (433 MHz)
 
 on:
-  workflow_dispatch: # Permite ejecutarlo manualmente con un botón
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar el código fuente con submódulos
+      # 1. Clonar ExpressLRS con submódulos
       - name: Clonar ExpressLRS
         run: |
           git clone --depth 1 --recurse-submodules --branch 3.4.3 https://github.com/ExpressLRS/ExpressLRS.git elrs
 
-      # 2. Instalar Python y PlatformIO
+      # 2. Instalar PlatformIO
       - name: Configurar Python y PlatformIO
         uses: actions/setup-python@v5
         with:
@@ -21,25 +21,30 @@ jobs:
       - name: Instalar PlatformIO CLI
         run: pip install platformio
 
-      # 3. Forzar el dominio a 433 MHz
-      - name: Configurar dominio regulatorio 433 MHz
+      # 3. Configurar user_defines.txt (433 MHz + Clave de Enlace)
+      - name: Configurar user_defines.txt
         run: |
           cd elrs/src
-          # Reemplaza el dominio por defecto al dominio AU_433 (Banda de 433 MHz)
-          find . -name "*.ini" -exec sed -i 's/-D Regulatory_Domain_ISM_2400/-D Regulatory_Domain_AU_433/g' {} +
-          find . -name "*.ini" -exec sed -i 's/-D Regulatory_Domain_FCC_915/-D Regulatory_Domain_AU_433/g' {} +
+          cat << 'EOF' > user_defines.txt
+          -DRegulatory_Domain_AU_433
+          -DMY_BINDING_PHRASE="vtol_expresslrs"
+          EOF
 
-      # 4. Compilar en la subcarpeta src/
-      - name: Compilar con PlatformIO
+      # 4. Compilar Transmisor (TX) y Receptor (RX) para ESP32-C3
+      - name: Compilar Firmware TX y RX
         run: |
           cd elrs/src
-          # Si compilas para ESP32-C3 TX usa: Unified_ESP32C3_900_TX_via_UART
-          # Si compilas para ESP32 Clásico TX usa: Unified_ESP32_900_TX_via_UART
-          pio run -e Unified_ESP32_900_TX_via_UART
+          echo "Compilando Transmisor (TX)..."
+          pio run -e Unified_ESP32C3_900_TX_via_UART
+          
+          echo "Compilando Receptor (RX)..."
+          pio run -e Unified_ESP32C3_900_RX_via_UART
 
-      # 5. Guardar el archivo .bin generado
-      - name: Subir Binario Compilado (Artifact)
+      # 5. Guardar ambos binarios en un solo paquete descargable
+      - name: Subir Binarios (Artifacts)
         uses: actions/upload-artifact@v4
         with:
-          name: firmware_elrs_ra02_tx
-          path: elrs/src/.pio/build/**/firmware.bin
+          name: elrs_c3_supermini_433mhz
+          path: |
+            elrs/src/.pio/build/Unified_ESP32C3_900_TX_via_UART/firmware.bin
+            elrs/src/.pio/build/Unified_ESP32C3_900_RX_via_UART/firmware.bin
