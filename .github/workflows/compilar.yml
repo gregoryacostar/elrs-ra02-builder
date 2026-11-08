@@ -14,24 +14,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Clonar ExpressLRS (rama master con submódulos)
+      # 1. Clonar ExpressLRS (master con submódulos)
       - name: Clonar ExpressLRS (master)
         run: |
           git clone --depth 1 --recurse-submodules https://github.com/ExpressLRS/ExpressLRS.git elrs
 
-      # 2. Configurar entorno Python y PlatformIO
+      # 2. Configurar Python
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: '3.10'
 
-      - name: Instalar PlatformIO Core
-        run: |
-          python -m pip install --upgrade pip
-          pip install -U platformio
+      # 3. Instalar PlatformIO CLI
+      - name: Instalar PlatformIO CLI
+        run: pip install platformio
 
-      # 3. Inyectar configuración: 433 MHz + Clave + Temporizador Auto-WiFi
+      # 4. Inyectar configuración: 433 MHz + Clave + Auto-WiFi en 30s
       - name: Inyectar user_defines.txt
         working-directory: elrs/src
         env:
@@ -43,13 +41,13 @@ jobs:
           echo "=== user_defines.txt generado ==="
           cat user_defines.txt
 
-      # 4. Compilar target TX unificado para ESP32-C3
+      # 5. Compilar Target TX
       - name: Compilar Target TX
         working-directory: elrs/src
         run: |
           pio run -e Unified_ESP32C3_900_TX_via_UART
 
-      # 5. Guardar el archivo .bin del Transmisor
+      # 6. Subir binario como artefacto
       - name: Subir Binario como Artefacto
         uses: actions/upload-artifact@v4
         with:
