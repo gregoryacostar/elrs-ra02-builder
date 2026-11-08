@@ -1,44 +1,58 @@
-name: Compilar ELRS TX para ESP32-C3 SuperMini (433 MHz)
+name: Compilar ELRS TX (ESP32-C3 433MHz)
 
 on:
   workflow_dispatch:
+    inputs:
+      binding_phrase:
+        description: 'Binding Phrase (Clave de enlace)'
+        required: true
+        default: 'vtol_expresslrs'
 
 jobs:
-  build:
+  build-tx:
+    name: Build TX Firmware
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Clonar ExpressLRS (master)
+      # 1. Clonar ExpressLRS (rama master con submódulos)
       - name: Clonar ExpressLRS (master)
         run: |
           git clone --depth 1 --recurse-submodules https://github.com/ExpressLRS/ExpressLRS.git elrs
 
-      # 2. Instalar PlatformIO
-      - name: Configurar Python y PlatformIO
+      # 2. Configurar entorno Python y PlatformIO
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Instalar PlatformIO CLI
-        run: pip install platformio
+          python-version: '3.11'
+          cache: 'pip'
 
-      # 3. Configurar user_defines.txt (433 MHz + Binding Phrase idéntica a la del RX)
-      - name: Configurar user_defines.txt
+      - name: Instalar PlatformIO Core
         run: |
-          cd elrs/src
-          cat << 'EOF' > user_defines.txt
-          -DRegulatory_Domain_AU_433
-          -DMY_BINDING_PHRASE="vtol_expresslrs"
-          EOF
+          python -m pip install --upgrade pip
+          pip install -U platformio
 
-      # 4. Compilar ÚNICAMENTE el Transmisor (TX)
-      - name: Compilar Transmisor TX C3
+      # 3. Inyectar configuración: 433 MHz + Clave + Temporizador Auto-WiFi
+      - name: Inyectar user_defines.txt
+        working-directory: elrs/src
+        env:
+          PHRASE: ${{ github.event.inputs.binding_phrase || 'vtol_expresslrs' }}
         run: |
-          cd elrs/src
+          echo "-DRegulatory_Domain_AU_433" > user_defines.txt
+          echo "-DMY_BINDING_PHRASE=\"$PHRASE\"" >> user_defines.txt
+          echo "-DAUTO_WIFI_ON_INTERVAL=30" >> user_defines.txt
+          echo "=== user_defines.txt generado ==="
+          cat user_defines.txt
+
+      # 4. Compilar target TX unificado para ESP32-C3
+      - name: Compilar Target TX
+        working-directory: elrs/src
+        run: |
           pio run -e Unified_ESP32C3_900_TX_via_UART
 
       # 5. Guardar el archivo .bin del Transmisor
-      - name: Subir Binario del Transmisor (Artifact)
+      - name: Subir Binario como Artefacto
         uses: actions/upload-artifact@v4
         with:
           name: firmware_TX_emisora
           path: elrs/src/.pio/build/Unified_ESP32C3_900_TX_via_UART/firmware.bin
+          if-no-files-found: error
